@@ -65,10 +65,12 @@ TIMING: 1-4h
 2.  Next, load these files into the R environment. For convenience, renamed the row names of the **pheno.ds** object to use subject IDs.
 
 ```{r}
-attr.dd = readxl::read_xlsx("data/GTEx_Analysis_v8_Annotations_SampleAttributesDD.xlsx");
-pheno.dd = readxl::read_xlsx("data/GTEx_Analysis_v8_Annotations_SubjectPhenotypesDD.xlsx");
-attr.ds = read.delim("data/GTEx_Analysis_v8_Annotations_SampleAttributesDS.txt");
-pheno.ds = read.delim("data/GTEx_Analysis_v8_Annotations_SubjectPhenotypesDS.txt");
+#| message: false
+#| warning: false
+attr.dd = readxl::read_xlsx("GTEx_Analysis_v8_Annotations_SampleAttributesDD.xlsx");
+pheno.dd = readxl::read_xlsx("GTEx_Analysis_v8_Annotations_SubjectPhenotypesDD.xlsx");
+attr.ds = read.delim("GTEx_Analysis_v8_Annotations_SampleAttributesDS.txt");
+pheno.ds = read.delim("GTEx_Analysis_v8_Annotations_SubjectPhenotypesDS.txt");
 row.names(pheno.ds) = pheno.ds$SUBJID;
 ```
 
@@ -80,7 +82,7 @@ getpid = function(x) { substring(x,1,10);}
 pids = sapply(rna_seqs$SAMPID, getpid);
 combinedtab=cbind(do.call("rbind", lapply(pids, function(x) { pheno.ds[x,];})), rna_seqs);
 combinedtab=combinedtab[!is.na(combinedtab$AGE),];   # 12289
-head(combinedtab);
+head(combinedtab[,c("SAMPID","AGE","SEX")]);
 ```
 
 ```{r}
@@ -91,7 +93,7 @@ To reduce data-loading time, read the TPM table containing gene expression data 
 
 ```{r}
 if (!file.exists("tpm_gct.dat")) {
-  tpm.gct <- read.delim(file="data/GTEx_Analysis_2017-06-05_v8_RNASeQCv1.1.9_gene_tpm.gct.gz", skip=2);
+  tpm.gct <- read.delim(file="GTEx_Analysis_2017-06-05_v8_RNASeQCv1.1.9_gene_tpm.gct.gz", skip=2);
   save(tpm.gct, file="tpm_gct.dat");
 } else {
   load("tpm_gct.dat");  
@@ -100,11 +102,11 @@ if (!file.exists("tpm_gct.dat")) {
 
 Afterward, read the saved RNA-seq samples and add a group category based on the age:
 
--   Young: 20-39 years
+- Young: 20-39 years
 
--   Middle-aged: 40-59 years
+- Middle-aged: 40-59 years
 
--   Old: 60 years or older
+- Old: 60 years or older
 
 ```{r}
 #xlsx::write.xlsx(combinedtab, "GTEx_Analysis_RNASEQ_samples.xlsx");  # takes too long
@@ -335,8 +337,12 @@ for (j in 1:3) {
 colnames(summary_tab) = colnames(tabs[[1]])[c(-1,-2,-3)];
 meantab = t(summary_tab);
 
-mtab = meantab[which(!row.names(meantab) %in% c("ACTN1","GAPDH")),c(1,7,13,2,8,14,3,9,15,4,10,16,5,11,17,6,12,18)];  # rearranged by tissues
+mtab = meantab[which(!row.names(meantab) %in% c("ACTN1","GAPDH","ACTB")),c(1,7,13,2,8,14,3,9,15,4,10,16,5,11,17,6,12,18)];  # rearranged by tissues
 colnames(mtab);
+```
+
+```{r}
+head(mtab[,1:6])
 ```
 
 From the gene expression tables of each tissue, calculate z-scores separately for each tissue and combined the results into a single table for heatmap visualization.
@@ -349,7 +355,7 @@ calcZscore<-function (tab) {
   zscore;
 }
 z.score = do.call("cbind",lapply(mtabs, calcZscore))[selected_genes,];
-head(z.score)
+head(z.score[,1:6])
 ```
 
 The z-score heatmap for an individual tissue can be generated using the following commands.
@@ -377,6 +383,19 @@ Heatmap(z.score.liver, name = "z-score", col = col_fun,  cluster_columns = FALSE
 ```
 
 Next, assign specific color schemes to represent z-score levels, tissue types and gene categories. The first heatmap displays gene expression changes across age groups, with genes hierarchically clustered based on their expression patterns.
+
+```{r}
+col_fun = colorRamp2(c(-1.5, 0, 1.5), c("blue", "white", "red"));
+split = data.frame(factor(c(rep(c("Kidney"), 3),rep(c("Lung"), 3),
+                            rep(c("Liver"), 3),rep(c("Colon"), 3), rep(c("Heart"), 3),rep(c("Skin"),3)                   ), levels=c("Kidney","Lung","Liver","Colon","Heart","Skin")));
+ha = HeatmapAnnotation(tissues = factor(c(rep(c("Kidney"), 3),rep(c("Lung"), 3), rep(c("Liver"), 3), rep(c("Colon"), 3), rep(c("Heart"), 3),rep(c("Skin"), 3)), levels=c("Kidney","Lung","Liver","Colon","Heart","Skin")), age = factor(c(rep(c("young","middle","aged"),6)),levels=c("young","middle","aged")),col = list(tissues = c("Kidney"="#FF0000", "Lung"="#FFFF00",              "Liver"="#00FF00","Colon"="#00FFFF", "Heart"="#0000FF", "Skin"="#FF00FF"),
+                                                                                                                                                                                                                                                                                                                           age = c("young" = "#440154FF" , "middle" = "#21908CFF", "aged" = "#FDE725FF") ))
+va = rowAnnotation(category = category,col = list(category = c("Centromere"="#00DDCF","InnerKinetochore"="#000004FF","OuterKinetochore"="#BB3754FF","Other"="#F98C0AFF", "Chaperone"="#CCCC84FF"))); 
+Heatmap(z.score, name = "z-score", col = col_fun,  column_split= split, column_gap= unit(0.1, "in"),cluster_columns = FALSE, bottom_annotation = ha,
+        left_annotation = va,column_title = "Tissues / Age Groups", row_title="Genes")
+
+
+```
 
 ```{r}
 library(ComplexHeatmap);
