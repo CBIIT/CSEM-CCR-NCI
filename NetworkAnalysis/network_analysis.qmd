@@ -163,13 +163,23 @@ genes_to_use=c(house_keeping_genes,selected_genes);
 genes_to_use
 ```
 
-Generate a gene expression table using the selected genes. Before doing so, remove any genes with low expression to improve data quanlity.
+Generate a gene expression table using the selected genes. Before doing so, remove any genes with low expression to improve data quality.
 
 ```{r}
 sampid = gsub("-",".", tab$SAMPID) # convert - into . to match the column names
 gene_exp = t(tpm.gct[match(genes_to_use,tpm.gct$Description), match(sampid, colnames(tpm.gct))]);
 colnames(gene_exp) <- genes_to_use;
 gene_exp= gene_exp[,apply(gene_exp,2,sum) > 1];   # delete genes with very low expressions
+```
+
+Optionally, for bulk RNA-seq TPM matrices, an alternative filtering strategy is to retain genes with TPM ≥1 in at least 10-20% of samples, helping to reduce the influence of low-level, sporadic expression noise in large sample cohorts.
+
+```{r}
+min_tpm <- 1
+min_fraction <- 0.10
+gene_exp = t(tpm.gct[match(genes_to_use,tpm.gct$Description), match(sampid, colnames(tpm.gct))]);
+colnames(gene_exp) <- genes_to_use;
+gene_exp <- gene_exp[rowMeans(gene_exp >= min_tpm, na.rm = TRUE) >= min_fraction,]
 ```
 
 Choose and run only one of the three normalization methods belows:
